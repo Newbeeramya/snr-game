@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Blaster Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .game-container {
+            position: relative;
+            width: 90vw;
+            max-width: 600px;
+            height: 70vh;
+            max-height: 400px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 2px;
+            width: 100%;
+            height: 100%;
+            padding: 10px;
+        }
+
+        .block {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: normal;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: none;
+            aspect-ratio: 1;
+        }
+
+        .block.even {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            animation: pulse 2s infinite;
+        }
+
+        .block.even:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.8);
+        }
+
+        .block.connected-preview {
+            box-shadow: 0 0 15px rgba(255, 255, 0, 0.9);
+            border-color: #ffff00;
+        }
+
+        .block.odd {
+            background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+        }
+
+        .block.blasting {
+            animation: blast 0.5s ease forwards;
+        }
+
+        .block.falling {
+            transition: all 0.5s ease;
+        }
+
+        .block.moving {
+            animation: moveTarget 3s ease-in-out infinite;
+        }
+
+        .block.moving.fast {
+            animation: moveTargetFast 2s ease-in-out infinite;
+        }
+
+        .block.moving.slow {
+            animation: moveTargetSlow 4s ease-in-out infinite;
+        }
+
+        @keyframes moveTarget {
+            0%, 100% { transform: translateX(0) translateY(0); }
+            25% { transform: translateX(10px) translateY(-5px); }
+            50% { transform: translateX(-8px) translateY(8px); }
+            75% { transform: translateX(12px) translateY(-10px); }
+        }
+
+        @keyframes moveTargetFast {
+            0%, 100% { transform: translateX(0) translateY(0) rotate(0deg); }
+            20% { transform: translateX(15px) translateY(-8px) rotate(5deg); }
+            40% { transform: translateX(-12px) translateY(12px) rotate(-3deg); }
+            60% { transform: translateX(18px) translateY(-15px) rotate(8deg); }
+            80% { transform: translateX(-10px) translateY(6px) rotate(-5deg); }
+        }
+
+        @keyframes moveTargetSlow {
+            0%, 100% { transform: translateX(0) translateY(0); }
+            33% { transform: translateX(8px) translateY(-12px); }
+            66% { transform: translateX(-15px) translateY(10px); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        @keyframes blast {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); background: #fff; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        .explosion {
+            position: absolute;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            animation: explode 0.8s ease-out forwards;
+        }
+
+        .particle:nth-child(odd) {
+            background: #ffa500;
+        }
+
+        .particle:nth-child(3n) {
+            background: #ffff00;
+        }
+
+        .particle:nth-child(4n) {
+            background: #ff4757;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: scale(1) translate(0, 0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0.2) translate(var(--dx), var(--dy));
+                opacity: 0;
+            }
+        }
+
+        .score {
+            text-align: center;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px 30px;
+            border-radius: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            display: inline-block;
+        }
+
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .controls-desktop {
+            display: block;
+        }
+
+        .controls-mobile {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .controls-desktop { display: none; }
+            .controls-mobile { display: block; }
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+
+        .restart-btn {
+            background: #4ecdc4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        .restart-btn:hover {
+            background: #45b7aa;
+        }
+
+        .bonus-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #ff6b6b 0%, #ffa500 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(255, 107, 107, 0.8);
+            z-index: 200;
+            animation: bonusPopup 2s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes bonusPopup {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0;
+            }
+            20% {
+                transform: translate(-50%, -50%) scale(1.2);
+                opacity: 1;
+            }
+            40% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 0;
+            }
+        }
+
+        .huge-blast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #fff 0%, #ff6b6b 30%, #ffa500 60%, transparent 100%);
+            z-index: 1000;
+            pointer-events: none;
+            animation: hugeBlastAnimation 1.5s ease-out forwards;
+        }
+
+        .huge-blast::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(255, 107, 107, 0.4) 40%, transparent 70%);
+            animation: hugeBlastRing 1.5s ease-out forwards;
+        }
+
+        .huge-blast::after {
+            content: '';
+            position: absolute;
+            top: -100%;
+            left: -100%;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, rgba(255, 165, 0, 0.2) 30%, transparent 50%);
+            animation: hugeBlastOuter 1.5s ease-out forwards;
+        }
+
+        @keyframes hugeBlastAnimation {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 1;
+            }
+            30% {
+                transform: translate(-50%, -50%) scale(1.5);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(3);
+                opacity: 0;
+            }
+        }
+
+        @keyframes hugeBlastRing {
+            0% {
+                transform: scale(0);
+                opacity: 0.8;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.6;
+            }
+            100% {
+                transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+
+        @keyframes hugeBlastOuter {
+            0% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            70% {
+                transform: scale(1);
+                opacity: 0.3;
+            }
+            100% {
+                transform: scale(1.8);
+                opacity: 0;
+            }
+        }
+
+        .end-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            padding: 60px 80px;
+            border-radius: 25px;
+            font-size: 72px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(255, 107, 107, 0.9);
+            z-index: 1500;
+            animation: endPopupAnimation 2s ease-out forwards;
+            pointer-events: none;
+            border: 5px solid #fff;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.7);
+        }
+
+        @keyframes endPopupAnimation {
+            0% {
+                transform: translate(-50%, -50%) scale(0) rotate(-180deg);
+                opacity: 0;
+            }
+            30% {
+                transform: translate(-50%, -50%) scale(1.3) rotate(0deg);
+                opacity: 1;
+            }
+            70% {
+                transform: translate(-50%, -50%) scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1) rotate(0deg);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="score">Score: <span id="score">0</span></div>
+    <div class="game-container" id="gameContainer">
+        <div class="game-grid" id="gameGrid"></div>
+        <div class="game-over" id="gameOver">
+            <h2>Congratulations!</h2>
+            <p>You cleared the entire grid!</p>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <button class="restart-btn" onclick="startGame()">Play Again</button>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="controls-desktop">Hit moving RED happy avatars only! Avoid moving TEAL scary avatars - they end the game!</div>
+        <div class="controls-mobile">Hit moving RED happy avatars only! Avoid moving TEAL scary avatars - they end the game!</div>
+    </div>
+
+    <script>
+        class BlockBlasterGame {
+            constructor() {
+                this.gameContainer = document.getElementById('gameContainer');
+                this.gameGrid = document.getElementById('gameGrid');
+                this.scoreElement = document.getElementById('score');
+                this.gameOverElement = document.getElementById('gameOver');
+                this.finalScoreElement = document.getElementById('finalScore');
+                
+                this.score = 0;
+                this.blocks = [];
+                this.gameRunning = false;
+                this.gridWidth = 6;
+                this.gridHeight = 8;
+                
+                this.initializeGame();
+            }
+
+            initializeGame() {
+                this.startGame();
+            }
+
+            startGame() {
+                this.score = 0;
+                this.blocks = [];
+                this.gameRunning = true;
+                this.gameOverElement.style.display = 'none';
+                
+                // Clear existing blocks
+                this.gameGrid.innerHTML = '';
+                
+                // Generate blocks
+                this.generateBlocks();
+                this.updateScore();
+            }
+
+            generateBlocks() {
+                // Define avatar emojis for even and odd positions
+                const evenAvatars = ['😀', '😃', '😄', '😁', '😆', '😊', '😍', '🤩', '😎', '🥳', '😇', '🤗', '🤔', '😋', '😘', '🥰', '😚', '🤪', '😜', '🤓'];
+                const oddAvatars = ['😈', '👹', '👺', '💀', '☠️', '👻', '👽', '👾', '🤖', '🎃', '😱', '😨', '😰', '😵', '🤯', '🥶', '🤢', '🤮', '😷', '🤒'];
+                
+                for (let row = 0; row < this.gridHeight; row++) {
+                    this.blocks[row] = [];
+                    for (let col = 0; col < this.gridWidth; col++) {
+                        const number = Math.floor(Math.random() * 20) + 1; // Numbers 1-20 (for logic)
+                        const isEven = number % 2 === 0;
+                        
+                        // Select random avatar based on even/odd
+                        const avatar = isEven ? 
+                            evenAvatars[Math.floor(Math.random() * evenAvatars.length)] :
+                            oddAvatars[Math.floor(Math.random() * oddAvatars.length)];
+                        
+                        const blockElement = document.createElement('div');
+                        blockElement.className = `block ${isEven ? 'even' : 'odd'}`;
+                        blockElement.textContent = avatar;
+                        blockElement.dataset.row = row;
+                        blockElement.dataset.col = col;
+                        blockElement.dataset.number = number;
+                        blockElement.dataset.avatar = avatar;
+                        
+                        // Add random movement animation to all blocks
+                        const movementTypes = ['moving', 'moving fast', 'moving slow'];
+                        const randomMovement = movementTypes[Math.floor(Math.random() * movementTypes.length)];
+                        blockElement.classList.add(...randomMovement.split(' '));
+                        
+                        // Add random delay to make movement more varied
+                        const delay = Math.random() * 2;
+                        blockElement.style.animationDelay = delay + 's';
+                        
+                        // Add click event listeners
+                        if (isEven) {
+                            blockElement.addEventListener('click', () => this.blastBlock(row, col));
+                            
+                            // Add hover preview for connected blocks
+                            blockElement.addEventListener('mouseenter', () => this.previewConnectedBlocks(row, col, number));
+                            blockElement.addEventListener('mouseleave', () => this.clearPreview());
+                        } else {
+                            // Odd blocks trigger game over when clicked
+                            blockElement.addEventListener('click', () => this.gameOverFromOddBlock());
+                        }
+                        
+                        this.blocks[row][col] = {
+                            number: number,
+                            isEven: isEven,
+                            element: blockElement,
+                            exists: true
+                        };
+                        
+                        this.gameGrid.appendChild(blockElement);
+                    }
+                }
+            }
+
+            blastBlock(row, col) {
+                if (!this.gameRunning) return;
+                
+                const block = this.blocks[row][col];
+                if (!block || !block.exists || !block.isEven) return;
+                
+                // Find all connected blocks with the same number
+                const connectedBlocks = this.findConnectedBlocks(row, col, block.number);
+                
+                // Blast all connected blocks with chain reaction
+                this.blastConnectedBlocks(connectedBlocks);
+            }
+
+            findConnectedBlocks(startRow, startCol, targetNumber) {
+                const visited = new Set();
+                const connected = [];
+                const queue = [[startRow, startCol]];
+                
+                while (queue.length > 0) {
+                    const [row, col] = queue.shift();
+                    const key = `${row},${col}`;
+                    
+                    if (visited.has(key)) continue;
+                    visited.add(key);
+                    
+                    // Check if this position is valid and has the target number
+                    if (row >= 0 && row < this.gridHeight && 
+                        col >= 0 && col < this.gridWidth &&
+                        this.blocks[row] && this.blocks[row][col] &&
+                        this.blocks[row][col].exists &&
+                        this.blocks[row][col].isEven &&
+                        this.blocks[row][col].number === targetNumber) {
+                        
+                        connected.push({row, col, block: this.blocks[row][col]});
+                        
+                        // Add adjacent positions to queue (4-directional)
+                        queue.push([row - 1, col]); // up
+                        queue.push([row + 1, col]); // down
+                        queue.push([row, col - 1]); // left
+                        queue.push([row, col + 1]); // right
+                    }
+                }
+                
+                return connected;
+            }
+
+            blastConnectedBlocks(connectedBlocks) {
+                let totalScore = 0;
+                const blockCount = connectedBlocks.length;
+                const isChainReaction = blockCount > 1;
+                
+                // Create explosions for all connected blocks with slight delays
+                connectedBlocks.forEach((blockInfo, index) => {
+                    const delay = index * 100; // Stagger explosions by 100ms
+                    
+                    setTimeout(() => {
+                        // Create explosion effect
+                        this.createExplosion(blockInfo.block.element);
+                        
+                        // Mark block as blasted
+                        blockInfo.block.exists = false;
+                        blockInfo.block.element.classList.add('blasting');
+                        
+                        // Add to total score (+1 for each block)
+                        totalScore += 1;
+                        
+                        // Remove block after animation
+                        setTimeout(() => {
+                            if (blockInfo.block.element) {
+                                blockInfo.block.element.remove();
+                            }
+                        }, 500);
+                    }, delay);
+                });
+                
+                // Update score and handle game logic after all explosions
+                setTimeout(() => {
+                    // Show chain reaction effects (no score multiplier, just 1x scoring)
+                    if (isChainReaction) {
+                        this.showBonusMessage(blockCount, totalScore);
+                        this.createHugeBlast(); // Add huge blast effect for chain reactions
+                    }
+                    
+                    this.score += totalScore;
+                    this.updateScore();
+                    
+                    // Make a random teal (odd) avatar disappear for each red avatar blasted
+                    this.disappearRandomTealAvatars(blockCount);
+                    
+                    // Make blocks fall down
+                    setTimeout(() => {
+                        this.makeBlocksFall();
+                        
+                        // Check win condition
+                        setTimeout(() => {
+                            this.checkWinCondition();
+                        }, 600);
+                    }, 300);
+                }, connectedBlocks.length * 100 + 100);
+            }
+
+            disappearRandomTealAvatars(redAvatarsBlasted) {
+                // Find all existing teal (odd) avatars
+                const tealAvatars = [];
+                for (let row = 0; row < this.gridHeight; row++) {
+                    for (let col = 0; col < this.gridWidth; col++) {
+                        const block = this.blocks[row] && this.blocks[row][col];
+                        if (block && block.exists && !block.isEven) {
+                            tealAvatars.push({row, col, block});
+                        }
+                    }
+                }
+                
+                // Make random teal avatars disappear (one for each red avatar blasted)
+                const avatarsToDisappear = Math.min(redAvatarsBlasted, tealAvatars.length);
+                
+                for (let i = 0; i < avatarsToDisappear; i++) {
+                    if (tealAvatars.length === 0) break;
+                    
+                    // Select random teal avatar
+                    const randomIndex = Math.floor(Math.random() * tealAvatars.length);
+                    const avatarToDisappear = tealAvatars[randomIndex];
+                    
+                    // Remove from array so we don't select it again
+                    tealAvatars.splice(randomIndex, 1);
+                    
+                    // Make it disappear with animation
+                    avatarToDisappear.block.exists = false;
+                    avatarToDisappear.block.element.classList.add('blasting');
+                    
+                    // Create small explosion effect
+                    setTimeout(() => {
+                        this.createExplosion(avatarToDisappear.block.element);
+                        
+                        setTimeout(() => {
+                            if (avatarToDisappear.block.element) {
+                                avatarToDisappear.block.element.remove();
+                            }
+                        }, 500);
+                    }, i * 200); // Stagger the disappearances
+                }
+            }
+
+            makeBlocksFall() {
+                // Process each column from bottom to top
+                for (let col = 0; col < this.gridWidth; col++) {
+                    let writeIndex = this.gridHeight - 1;
+                    
+                    // Collect all existing blocks in this column from bottom to top
+                    const existingBlocks = [];
+                    for (let row = this.gridHeight - 1; row >= 0; row--) {
+                        if (this.blocks[row][col] && this.blocks[row][col].exists) {
+                            existingBlocks.push(this.blocks[row][col]);
+                        }
+                    }
+                    
+                    // Clear the column
+                    for (let row = 0; row < this.gridHeight; row++) {
+                        if (this.blocks[row][col] && this.blocks[row][col].element) {
+                            this.blocks[row][col].element.remove();
+                        }
+                        this.blocks[row][col] = null;
+                    }
+                    
+                    // Place existing blocks at the bottom
+                    existingBlocks.forEach((block, index) => {
+                        const newRow = this.gridHeight - 1 - index;
+                        this.blocks[newRow][col] = block;
+                        
+                        // Update element position and data
+                        block.element.dataset.row = newRow;
+                        block.element.dataset.col = col;
+                        block.element.classList.add('falling');
+                        
+                        // Re-add to grid
+                        this.gameGrid.appendChild(block.element);
+                        
+                        // Preserve moving animation classes
+                        if (!block.element.classList.contains('moving')) {
+                            const movementTypes = ['moving', 'moving fast', 'moving slow'];
+                            const randomMovement = movementTypes[Math.floor(Math.random() * movementTypes.length)];
+                            block.element.classList.add(...randomMovement.split(' '));
+                            
+                            // Add random delay
+                            const delay = Math.random() * 2;
+                            block.element.style.animationDelay = delay + 's';
+                        }
+                        
+                        // Update click listeners for both even and odd blocks
+                        if (block.isEven) {
+                            block.element.onclick = () => this.blastBlock(newRow, col);
+                        } else {
+                            block.element.onclick = () => this.gameOverFromOddBlock();
+                        }
+                    });
+                }
+            }
+
+            showBonusMessage(blockCount, bonusScore) {
+                const bonusElement = document.createElement('div');
+                bonusElement.className = 'bonus-message';
+                bonusElement.innerHTML = `
+                    <div>🎉 CHAIN REACTION! 🎉</div>
+                    <div>${blockCount} blocks connected!</div>
+                    <div>+${bonusScore} points!</div>
+                `;
+                
+                this.gameContainer.appendChild(bonusElement);
+                
+                // Remove bonus message after animation
+                setTimeout(() => {
+                    if (bonusElement.parentNode) {
+                        bonusElement.parentNode.removeChild(bonusElement);
+                    }
+                }, 2000);
+            }
+
+            createHugeBlast() {
+                const hugeBlast = document.createElement('div');
+                hugeBlast.className = 'huge-blast';
+                
+                // Add to body so it appears outside the game container
+                document.body.appendChild(hugeBlast);
+                
+                // Remove huge blast after animation
+                setTimeout(() => {
+                    if (hugeBlast.parentNode) {
+                        hugeBlast.parentNode.removeChild(hugeBlast);
+                    }
+                }, 1500);
+            }
+
+            showCompletionMessage(type, count) {
+                const completionElement = document.createElement('div');
+                completionElement.className = 'bonus-message';
+                completionElement.style.background = 'linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%)';
+                completionElement.innerHTML = `
+                    <div>✨ ${type} COMPLETED! ✨</div>
+                    <div>${count} ${type.toLowerCase()}${count > 1 ? 's' : ''} cleared!</div>
+                    <div>+${count * 100} bonus points!</div>
+                `;
+                
+                this.gameContainer.appendChild(completionElement);
+                
+                // Remove completion message after animation
+                setTimeout(() => {
+                    if (completionElement.parentNode) {
+                        completionElement.parentNode.removeChild(completionElement);
+                    }
+                }, 2000);
+            }
+
+            previewConnectedBlocks(row, col, number) {
+                if (!this.gameRunning) return;
+                
+                const block = this.blocks[row][col];
+                if (!block || !block.exists || !block.isEven) return;
+                
+                // Find connected blocks
+                const connectedBlocks = this.findConnectedBlocks(row, col, number);
+                
+                // Highlight all connected blocks
+                connectedBlocks.forEach(blockInfo => {
+                    if (blockInfo.block.element) {
+                        blockInfo.block.element.classList.add('connected-preview');
+                    }
+                });
+            }
+
+            clearPreview() {
+                // Remove preview highlighting from all blocks
+                document.querySelectorAll('.connected-preview').forEach(element => {
+                    element.classList.remove('connected-preview');
+                });
+            }
+
+            createExplosion(blockElement) {
+                const rect = blockElement.getBoundingClientRect();
+                const gameRect = this.gameGrid.getBoundingClientRect();
+                
+                // Calculate position relative to game grid
+                const centerX = rect.left - gameRect.left + rect.width / 2;
+                const centerY = rect.top - gameRect.top + rect.height / 2;
+                
+                // Create explosion container
+                const explosion = document.createElement('div');
+                explosion.className = 'explosion';
+                explosion.style.left = centerX + 'px';
+                explosion.style.top = centerY + 'px';
+                
+                // Create particles
+                const particleCount = 12;
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'particle';
+                    
+                    // Random direction and distance
+                    const angle = (i / particleCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+                    const distance = 30 + Math.random() * 40;
+                    const dx = Math.cos(angle) * distance;
+                    const dy = Math.sin(angle) * distance;
+                    
+                    // Set CSS custom properties for animation
+                    particle.style.setProperty('--dx', dx + 'px');
+                    particle.style.setProperty('--dy', dy + 'px');
+                    
+                    explosion.appendChild(particle);
+                }
+                
+                // Add explosion to game grid
+                this.gameGrid.appendChild(explosion);
+                
+                // Remove explosion after animation
+                setTimeout(() => {
+                    if (explosion.parentNode) {
+                        explosion.parentNode.removeChild(explosion);
+                    }
+                }, 800);
+            }
+
+            checkWinCondition() {
+                // Check if any complete rows or columns are empty
+                const completedRows = this.getCompletedRows();
+                const completedCols = this.getCompletedColumns();
+                
+                // Remove completed rows and columns
+                if (completedRows.length > 0 || completedCols.length > 0) {
+                    this.removeCompletedRowsAndColumns(completedRows, completedCols);
+                }
+                
+                // Check if all even numbers are blasted
+                if (this.areAllEvenNumbersBlasted()) {
+                    this.showEndPopup();
+                    setTimeout(() => {
+                        this.endGame();
+                    }, 2000);
+                }
+            }
+
+            getCompletedRows() {
+                const completedRows = [];
+                for (let row = 0; row < this.gridHeight; row++) {
+                    let hasBlocks = false;
+                    for (let col = 0; col < this.gridWidth; col++) {
+                        if (this.blocks[row] && this.blocks[row][col] && this.blocks[row][col].exists) {
+                            hasBlocks = true;
+                            break;
+                        }
+                    }
+                    if (!hasBlocks) {
+                        completedRows.push(row);
+                    }
+                }
+                return completedRows;
+            }
+
+            getCompletedColumns() {
+                const completedCols = [];
+                for (let col = 0; col < this.gridWidth; col++) {
+                    let hasBlocks = false;
+                    for (let row = 0; row < this.gridHeight; row++) {
+                        if (this.blocks[row] && this.blocks[row][col] && this.blocks[row][col].exists) {
+                            hasBlocks = true;
+                            break;
+                        }
+                    }
+                    if (!hasBlocks) {
+                        completedCols.push(col);
+                    }
+                }
+                return completedCols;
+            }
+
+            removeCompletedRowsAndColumns(completedRows, completedCols) {
+                // Show completion message
+                if (completedRows.length > 0) {
+                    this.showCompletionMessage('ROW', completedRows.length);
+                }
+                if (completedCols.length > 0) {
+                    this.showCompletionMessage('COLUMN', completedCols.length);
+                }
+                
+                // Award bonus points for completed rows/columns
+                const bonusPoints = (completedRows.length + completedCols.length) * 100;
+                this.score += bonusPoints;
+                this.updateScore();
+            }
+
+            areAllEvenNumbersBlasted() {
+                for (let row = 0; row < this.gridHeight; row++) {
+                    for (let col = 0; col < this.gridWidth; col++) {
+                        const block = this.blocks[row] && this.blocks[row][col];
+                        if (block && block.exists && block.isEven) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            gameOverFromOddBlock() {
+                if (!this.gameRunning) return;
+                
+                this.gameRunning = false;
+                
+                // Show immediate game over message
+                const gameOverPopup = document.createElement('div');
+                gameOverPopup.className = 'end-popup';
+                gameOverPopup.style.background = 'linear-gradient(135deg, #ff4757 0%, #c44569 100%)';
+                gameOverPopup.textContent = 'GAME OVER';
+                gameOverPopup.style.fontSize = '48px';
+                
+                document.body.appendChild(gameOverPopup);
+                
+                // Remove popup and show game over screen
+                setTimeout(() => {
+                    if (gameOverPopup.parentNode) {
+                        gameOverPopup.parentNode.removeChild(gameOverPopup);
+                    }
+                    this.endGame();
+                }, 2000);
+            }
+
+            showEndPopup() {
+                const endPopup = document.createElement('div');
+                endPopup.className = 'end-popup';
+                endPopup.textContent = 'END';
+                
+                // Add to body so it appears above everything
+                document.body.appendChild(endPopup);
+                
+                // Remove END popup after 2 seconds (before game over screen)
+                setTimeout(() => {
+                    if (endPopup.parentNode) {
+                        endPopup.parentNode.removeChild(endPopup);
+                    }
+                }, 2000);
+            }
+
+            updateScore() {
+                this.scoreElement.textContent = this.score;
+            }
+
+            endGame() {
+                this.gameRunning = false;
+                this.finalScoreElement.textContent = this.score;
+                this.gameOverElement.style.display = 'block';
+            }
+        }
+
+        // Initialize game when page loads
+        let game;
+        window.addEventListener('load', () => {
+            game = new BlockBlasterGame();
+        });
+
+        function startGame() {
+            if (game) {
+                game.startGame();
+            }
+        }
+    </script>
+</body>
+</html>
